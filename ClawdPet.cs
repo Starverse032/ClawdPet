@@ -371,9 +371,12 @@ namespace ClawdPet
         public ArmStyle ArmL = ArmStyle.Normal, ArmR = ArmStyle.Normal;
         public EyeStyle Eyes = EyeStyle.Open;
         public bool Blush;
+        public int Frame = -1;    // >= 0：画敲键盘动画的这一帧（见 Typing），忽略上面的参数
+        public bool Mirror;       // 敲键盘帧水平镜像（笔记本放在左边）
 
         public string Key()
         {
+            if (Frame >= 0) return "T" + Frame + (Mirror ? "m" : "") + (Eyes == EyeStyle.Closed ? "c" : "");
             return BodyW + "," + BodyH + "," + LegLen + "," + LegDX + "," + OffX + "," + EyeDX + "," + EyeDY + ","
                 + Lift[0] + Lift[1] + Lift[2] + Lift[3] + "," + (int)ArmL + (int)ArmR + (int)Eyes + (Blush ? "b" : "");
         }
@@ -419,6 +422,7 @@ namespace ClawdPet
         /// <summary>在 (ox, oy)=脚底中心 处画 Clawd；ps = 每个子像素的像素数。</summary>
         public static void DrawSprite(Graphics g, float ox, float oy, float ps, Pose p)
         {
+            if (p.Frame >= 0) { Typing.Draw(g, ox, oy, ps, p.Frame, p.Mirror, p.Eyes == EyeStyle.Closed); return; }
             ox += p.OffX * ps;
             using (SolidBrush body = new SolidBrush(BodyColor))
             using (SolidBrush eye = new SolidBrush(EyeColor))
@@ -518,6 +522,142 @@ namespace ClawdPet
                     g.FillRegion(ob, ring);
                 }
                 using (SolidBrush fb = new SolidBrush(fill)) g.FillPath(fb, inner);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 思考动画：Clawd 敲键盘
+    /// <summary>
+    /// 思考时的“敲键盘”逐帧动画：转身 → 掏出笔记本 → 打开放到地上 → 伸个懒腰 →
+    /// 两只手轮流敲键盘（循环） → 合上收好 → 转回来。
+    /// 动作和节奏参照 Claude 应用里的 Clawd-Laptop 动画（12 帧/秒），按本程序的像素比例重新绘制。
+    /// 坐标单位为子像素，原点 = 脚底中心，y 向上为负；按“笔记本在右边”绘制，朝左时水平镜像。
+    /// 每帧是若干矩形：O 身体，D 背光面（侧身时的暗面），E 眼睛，G 笔记本。
+    /// </summary>
+    static class Typing
+    {
+        public const double Fps = 12;
+        public static readonly Color ShadeColor = Color.FromArgb(190, 104, 77);
+        public static readonly Color LaptopColor = Color.FromArgb(139, 139, 139);
+
+        // 常用部件
+        const string FrontBody = "O -12 -20 24 16";
+        const string FrontEyes = "E -8 -16 2 4, E 6 -16 2 4";
+        const string FrontEyesLow = "E -8 -15 2 4, E 6 -15 2 4";
+        const string Legs = "O -10 -4 2 4, O -6 -4 2 4, O 4 -4 2 4, O 8 -4 2 4";
+        const string LegsShaded = "D -10 -4 2 4, O -6 -4 2 4, O 4 -4 2 4, O 8 -4 2 4";
+        // 蹲着敲键盘：身体压低、左边一条暗面表示侧过身，右眼贴着脸的边缘
+        const string Crouch = "O -12 -17 24 14, D -12 -17 6 14, E -3 -12 2 4, E 10 -12 2 4, "
+            + "D -10 -3 2 3, O -6 -3 2 3, O 4 -3 2 3, O 8 -3 2 3";
+        // 打开放在地上的笔记本：键盘底座 + 向后仰的屏幕
+        const string Desk = "G 16 -2 9 2, G 24 -3 2 1, G 25 -4 2 1, G 26 -5 2 1, G 27 -6 2 1, G 28 -7 2 1, G 29 -8 2 1";
+
+        static readonly string[] Defs = {
+            // 0 转身：近处的眼睛照常，远处的眼睛被挤成一条线；后手抬起、前手放低
+            "O -12 -19 24 15, E 6 -15 2 4, E -9 -12 3 1, O -16 -16 4 4, O 12 -10 3 4, " + Legs,
+            // 1 从背后掏出合着的笔记本，举过肩膀
+            FrontBody + ", " + FrontEyes + ", O -16 -11 4 4, O 12 -19 4 4, "
+                + "G 14 -24 3 1, G 14 -23 5 1, G 17 -22 7 1, G 20 -21 4 1, G 14 -20 10 1, " + Legs,
+            // 2 举在头顶掀开屏幕
+            FrontBody + ", " + FrontEyes + ", O -16 -11 4 4, O 12 -21 4 5, G 14 -22 9 1, G 21 -28 2 6, " + Legs,
+            // 3 斜着放下来
+            FrontBody + ", " + FrontEyesLow + ", O -16 -12 4 4, O 12 -12 3 4, "
+                + "G 26 -16 3 1, G 25 -15 5 2, G 24 -13 5 1, G 15 -12 13 1, G 15 -11 10 1, " + Legs,
+            // 4 放到地上，手还按着
+            FrontBody + ", " + FrontEyesLow + ", O -16 -11 4 4, O 12 -7 4 3, " + Desk + ", " + Legs,
+            // 5 放好了
+            FrontBody + ", " + FrontEyes + ", O -16 -12 4 4, O 12 -12 4 4, " + Desk + ", " + Legs,
+            // 6 伸个懒腰：两只手举过头顶，身体拉长并侧过来
+            "O -12 -21 24 17, D -12 -21 3 17, O -6 -25 4 4, O 7 -25 4 4, E -5 -17 2 4, E 9 -17 2 4, " + Desk + ", " + LegsShaded,
+            // 7 俯下身准备打字
+            Crouch + ", O 12 -14 5 5, D 12 -10 5 1, " + Desk,
+            // 8-10 打字循环：前手（亮）和后手（暗）轮流落在键盘上
+            Crouch + ", O 12 -8 4 4, D 16 -7 1 3, D 12 -4 4 1, " + Desk,
+            Crouch + ", O 12 -11 3 4, D 12 -5 4 3, " + Desk,
+            Crouch + ", D 12 -12 4 2, O 12 -8 4 5, D 16 -7 1 3, " + Desk,
+            // 11 合上屏幕
+            Crouch + ", O 12 -12 5 4, D 12 -9 5 1, G 16 -2 9 2, G 24 -8 2 6",
+            // 12 夹着合好的笔记本收起来
+            "O -12 -19 24 15, D -12 -19 3 15, E -5 -15 2 4, E 9 -15 2 4, O -18 -12 6 4, O 12 -12 4 4, G 16 -13 9 2, " + LegsShaded,
+        };
+
+        // 播放顺序（每个数字是一帧，1/12 秒）
+        public static readonly int[] Intro = { 0, 0, 0, 0, 1, 2, 2, 3, 4, 5, 6, 6, 7 };
+        public static readonly int[] Loop = { 8, 9, 10 };
+        public static readonly int[] Outro = { 11, 12, 12, 0, 0, 0 };
+        public static readonly int Count = Defs.Length;
+
+        static readonly int[][] frames;
+        static readonly Rectangle[] bounds;
+
+        static Typing()
+        {
+            frames = new int[Defs.Length][];
+            bounds = new Rectangle[Defs.Length];
+            for (int i = 0; i < Defs.Length; i++)
+            {
+                string[] parts = Defs[i].Split(',');
+                int[] f = new int[parts.Length * 5];
+                Rectangle b = Rectangle.Empty;
+                for (int k = 0; k < parts.Length; k++)
+                {
+                    string[] t = parts[k].Trim().Split(' ');
+                    f[k * 5] = "ODEG".IndexOf(t[0][0]);
+                    for (int j = 1; j <= 4; j++) f[k * 5 + j] = int.Parse(t[j]);
+                    Rectangle r = new Rectangle(f[k * 5 + 1], f[k * 5 + 2], f[k * 5 + 3], f[k * 5 + 4]);
+                    b = b.IsEmpty ? r : Rectangle.Union(b, r);
+                }
+                frames[i] = f;
+                bounds[i] = b;
+            }
+        }
+
+        /// <summary>第 t 秒处的思考帧（先播开场，再无限循环打字）。</summary>
+        public static int ThinkFrame(double t)
+        {
+            int f = Math.Max(0, (int)(t * Fps));
+            return f < Intro.Length ? Intro[f] : Loop[(f - Intro.Length) % Loop.Length];
+        }
+
+        /// <summary>第 t 秒处的收拾帧。</summary>
+        public static int OutroFrame(double t)
+        {
+            return Outro[Math.Max(0, Math.Min(Outro.Length - 1, (int)(t * Fps)))];
+        }
+
+        public static double OutroSeconds { get { return Outro.Length / Fps; } }
+
+        /// <summary>该帧的包围盒（子像素，已按朝向镜像）。</summary>
+        public static Rectangle Bounds(int frame, bool mirror)
+        {
+            Rectangle b = bounds[frame];
+            return mirror ? new Rectangle(-b.Right, b.Y, b.Width, b.Height) : b;
+        }
+
+        /// <summary>所有帧的包围盒：整段动画里窗口大小保持不变。</summary>
+        public static Rectangle AllBounds(bool mirror)
+        {
+            Rectangle b = bounds[0];
+            foreach (Rectangle r in bounds) b = Rectangle.Union(b, r);
+            return mirror ? new Rectangle(-b.Right, b.Y, b.Width, b.Height) : b;
+        }
+
+        public static void Draw(Graphics g, float ox, float oy, float ps, int frame, bool mirror, bool blink)
+        {
+            int[] f = frames[frame];
+            using (SolidBrush body = new SolidBrush(Art.BodyColor))
+            using (SolidBrush shade = new SolidBrush(ShadeColor))
+            using (SolidBrush eye = new SolidBrush(Art.EyeColor))
+            using (SolidBrush laptop = new SolidBrush(LaptopColor))
+            {
+                Brush[] brushes = { body, shade, eye, laptop };
+                for (int k = 0; k < f.Length; k += 5)
+                {
+                    int x = f[k + 1], y = f[k + 2], w = f[k + 3], h = f[k + 4];
+                    if (f[k] == 2 && blink && h > 1) { y += h - 1; h = 1; }   // 眨眼：只剩最下面一条
+                    if (mirror) x = -x - w;
+                    g.FillRectangle(brushes[f[k]], ox + x * ps, oy + y * ps, w * ps, h * ps);
+                }
             }
         }
     }
@@ -1036,7 +1176,8 @@ namespace ClawdPet
     // ------------------------------------------------------------------ 宠物本体
     class PetForm : Form
     {
-        enum St { Fall, Land, Idle, Walk, Jump, Sit, Sleep, Wave, Think, Happy, Drag, Dizzy, Look, Dance, Annoyed }
+        // Think = 掏出笔记本敲键盘；PackUp = 思考结束后合上笔记本收好
+        enum St { Fall, Land, Idle, Walk, Jump, Sit, Sleep, Wave, Think, Happy, Drag, Dizzy, Look, Dance, Annoyed, PackUp }
 
         // Claude Code 的转圈图标
         static readonly string[] Spinner = { "·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢" };
@@ -1073,6 +1214,8 @@ namespace ClawdPet
         BubbleLayout bubbleLayout;
         string greetText;
         bool thinkForced, leaving, hidden, wallHit, settling;
+        int laptopSide = 1;      // 敲键盘时笔记本放在哪边（1 右，-1 左）
+        bool packThenDone;       // 收好笔记本后说“想好了！”（普通思考结束时）
         bool claudePose;
         long claudeReaction;
         double leaveAt;
@@ -1227,6 +1370,7 @@ namespace ClawdPet
             // 思考被打断：转圈气泡也收起来
             if (st == St.Think && s != St.Think && bubble != null && bubble.Thinking)
                 bubble.Life = Math.Min(bubble.Life, bubble.Age + 0.3);
+            if (s == St.Think && st != St.Think) laptopSide = ChooseLaptopSide();
             st = s;
             // Debug captures include brief transitions such as the confirmation hop.
             if (!string.IsNullOrEmpty(DumpDir)) lastDump = -1;
@@ -1508,7 +1652,12 @@ namespace ClawdPet
             if (activity != null && st != St.Land && st != St.Dizzy)
             {
                 lastInteraction = now;
-                if (DesktopMcp.IsChatSource(activity.Source))
+                bool chat = DesktopMcp.IsChatSource(activity.Source);
+                bool wantThink = chat ? activity.Kind == "working" : activity.Active && activity.Thinking;
+                // 不再需要敲键盘了：先合上笔记本收好，收完再切到新状态
+                if (st == St.Think && !wantThink) { StartPackUp(false); return; }
+                if (st == St.PackUp && stT < stDur) return;
+                if (chat)
                 {
                     St pose = activity.Kind == "working" ? St.Think : activity.Kind == "dance" ? St.Dance :
                         activity.Kind == "sleep" ? St.Sleep : activity.Kind == "happy" ? St.Happy :
@@ -1516,7 +1665,9 @@ namespace ClawdPet
                     if (claudeReaction != activity.Ticks || !claudePose || st != pose)
                     {
                         claudeReaction = activity.Ticks;
-                        SetState(pose, double.MaxValue);
+                        // 已经在敲键盘就接着敲，不要重新掏一遍电脑
+                        if (pose == St.Think && st == St.Think) stDur = double.MaxValue;
+                        else SetState(pose, double.MaxValue);
                         if (pose == St.Happy) SpawnHearts(3);
                         if (activity.Kind == "error" || activity.Kind == "waiting") SpawnMark(PK.Bang);
                         nextFx = now;
@@ -1548,7 +1699,8 @@ namespace ClawdPet
                 if (activity.Active)
                 {
                     St desired = activity.Thinking ? St.Think : St.Look;
-                    if (!claudePose || st != desired) SetState(desired, double.MaxValue);
+                    if (st != desired) SetState(desired, double.MaxValue);
+                    else if (!claudePose) stDur = double.MaxValue;   // 正在敲键盘/张望：接着做，交给 AI 状态控制何时结束
                     claudePose = true;
                     return;
                 }
@@ -1561,7 +1713,12 @@ namespace ClawdPet
                     claudePose = false;
                 }
             }
-            if (claudePose) { claudePose = false; SetState(St.Idle, 1); }
+            if (claudePose)
+            {
+                claudePose = false;
+                // AI 状态结束：敲着键盘就先收电脑；正在收的让它收完（PackUp 结束后自然回到 Idle）
+                if (st != St.PackUp && !StartPackUp(false)) SetState(St.Idle, 1);
+            }
             if (ctx.Settings.Follow && cursorOk) FollowCursor();
             switch (st)
             {
@@ -1595,11 +1752,19 @@ namespace ClawdPet
                     if (stT >= stDur) SetState(St.Idle, 1.5);
                     break;
                 case St.Think:
+                    if (stT >= stDur) StartPackUp(true);
+                    break;
+                case St.PackUp:
                     if (stT >= stDur)
                     {
-                        bubble = null;
-                        Say(Pick(Lines.ThinkDone), thinkForced);
-                        SetState(St.Happy, 0.9);
+                        if (packThenDone)
+                        {
+                            packThenDone = false;
+                            bubble = null;
+                            Say(Pick(Lines.ThinkDone), thinkForced);
+                            SetState(St.Happy, 0.9);
+                        }
+                        else SetState(St.Idle, 0.8 + ctx.Rng.NextDouble());
                     }
                     break;
                 case St.Dizzy:
@@ -1774,10 +1939,32 @@ namespace ClawdPet
             Say(Pick(Lines.Wake), forced);
         }
 
+        /// <summary>笔记本放在哪边：优先朝着面对的方向，那边放不下（屏幕边缘/窗口边缘）就换另一边。</summary>
+        int ChooseLaptopSide()
+        {
+            double left, right, need;
+            if (platform != IntPtr.Zero) { left = fx - platRect.Left; right = platRect.Right - fx; need = 26 * ps; }
+            else { left = fx - area.Left; right = area.Right - fx; need = 32 * ps; }
+            int pref = facing >= 0 ? 1 : -1;
+            if ((pref > 0 ? right : left) >= need) return pref;
+            if ((pref > 0 ? left : right) >= need) return -pref;
+            return right >= left ? 1 : -1;
+        }
+
+        /// <summary>结束敲键盘：先合上笔记本收好，再做后面的事。不在敲键盘时返回 false。</summary>
+        bool StartPackUp(bool thenDone)
+        {
+            if (st != St.Think) return false;
+            packThenDone = thenDone;
+            SetState(St.PackUp, Typing.OutroSeconds);
+            return true;
+        }
+
         void EnterThink(bool forced)
         {
             thinkForced = forced;
-            SetState(St.Think, 3.5 + ctx.Rng.NextDouble() * 3);
+            // 开场掏电脑约 1.1 秒，之后至少敲几秒键盘
+            SetState(St.Think, 4.5 + ctx.Rng.NextDouble() * 3.5);
             if (ctx.Settings.Quiet && !forced) return;
             bubble = new Bubble();
             bubble.Text = Pick(Lines.Verbs) + "…";
@@ -2297,9 +2484,12 @@ namespace ClawdPet
                     p.OffX = (int)Math.Round(Math.Sin(t * 6) * 1.4);
                     break;
                 case St.Think:
-                    p.EyeDY = -1;
-                    p.EyeDX = ((int)(t / 1.1)) % 2 == 0 ? -1 : 1;
-                    breathe = true;
+                    p.Frame = Typing.ThinkFrame(t);   // 掏出笔记本 → 敲键盘循环
+                    p.Mirror = laptopSide < 0;
+                    break;
+                case St.PackUp:
+                    p.Frame = Typing.OutroFrame(t);   // 合上笔记本收好
+                    p.Mirror = laptopSide < 0;
                     break;
                 case St.Dance:
                     {
@@ -2340,6 +2530,12 @@ namespace ClawdPet
             Pose pose = BuildPose();
             int ix = (int)Math.Round(fx), iy = (int)Math.Round(fy);
             Rectangle box = new Rectangle(ix + Art.BoxLeft * ps, iy + Art.BoxTop * ps, Art.BoxW * ps, Art.BoxH * ps);
+            if (pose.Frame >= 0)
+            {
+                // 笔记本会伸到身体外面：窗口要包住整帧
+                Rectangle tb = Typing.AllBounds(pose.Mirror);
+                box = Rectangle.Union(box, new Rectangle(ix + tb.X * ps, iy + tb.Y * ps, tb.Width * ps, tb.Height * ps));
+            }
             foreach (Particle q in parts) box = Rectangle.Union(box, ParticleBounds(q, ix, iy));
 
             bubbleLayout = null;
@@ -2941,7 +3137,8 @@ namespace ClawdPet
             p = new Pose(); p.ArmR = ArmStyle.Up; p.Eyes = EyeStyle.Happy; L.Add(P("挥手", p));
             p = new Pose(); p.ArmL = p.ArmR = ArmStyle.Up; p.Eyes = EyeStyle.Happy; p.Blush = true; L.Add(P("开心", p));
             p = new Pose(); p.Eyes = EyeStyle.Dizzy; p.ArmL = p.ArmR = ArmStyle.Down; p.OffX = 1; L.Add(P("晕", p));
-            p = new Pose(); p.EyeDY = -1; p.EyeDX = -1; L.Add(P("思考", p));
+            string[] typingNames = { "转身", "掏电脑", "打开", "放下", "放好", "放好了", "伸懒腰", "俯身", "敲键盘 1", "敲键盘 2", "敲键盘 3", "合上", "收起来" };
+            for (int i = 0; i < Typing.Count; i++) { p = new Pose(); p.Frame = i; L.Add(P(typingNames[i], p)); }
             p = new Pose(); p.Eyes = EyeStyle.Squint; p.ArmL = p.ArmR = ArmStyle.Down; L.Add(P("生气", p));
             p = new Pose(); p.Eyes = EyeStyle.Sleepy; L.Add(P("犯困", p));
             p = new Pose(); p.Eyes = EyeStyle.Closed; L.Add(P("眨眼", p));
@@ -2960,7 +3157,8 @@ namespace ClawdPet
                     using (SolidBrush bg = new SolidBrush(dark ? Color.FromArgb(38, 38, 44) : Color.FromArgb(236, 233, 228)))
                         g.FillRectangle(bg, cx, cy, cw, ch);
                     g.SmoothingMode = SmoothingMode.None;
-                    Art.DrawSprite(g, cx + cw / 2, cy + ch - 4 * ps, ps, L[i].Value);
+                    // 敲键盘的帧右边带着笔记本，往左挪一点免得出格
+                    Art.DrawSprite(g, cx + cw / 2 - (L[i].Value.Frame >= 0 ? 8 * ps : 0), cy + ch - 4 * ps, ps, L[i].Value);
                     g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                     using (SolidBrush tb = new SolidBrush(dark ? Color.White : Color.Black))
                         g.DrawString(L[i].Key, lf, tb, cx + 6, cy + 4);
