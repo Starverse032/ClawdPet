@@ -1,0 +1,19 @@
+# Local diagnostics, test fixtures, captures and release staging
+/work/
+/dist/
+/ClawdPet.exe
+*.pdb
+*.log
+*.bak
+*.tmp
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local credentials and agent configuration
+.env
+.env.*
+.codex/
+.agents/
+.aws/
