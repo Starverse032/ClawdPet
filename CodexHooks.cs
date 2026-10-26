@@ -21,49 +21,20 @@ namespace ClawdPet
             return "ChatGPT · " + Lines.Verbs[index] + "…";
         }
 
-        static string Field(Dictionary<string, object> data, string key, int max)
-        {
-            object value;
-            string text = data.TryGetValue(key, out value) ? value as string : null;
-            return text == null ? "" : text.Length <= max ? text : text.Substring(0, max);
-        }
-
         public static ClaudeEvent Parse(string input)
         {
-            var json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024, RecursionLimit = 100 };
+            var json = new JavaScriptSerializer { MaxJsonLength = HookInput.MaxLength, RecursionLimit = 100 };
             var data = json.Deserialize<Dictionary<string, object>>(input);
-            if (data == null || Field(data, "agent_id", 200) != "") return null;
-            string kind = Field(data, "hook_event_name", 80), session = Field(data, "session_id", 200);
+            if (data == null || HookInput.Field(data, "agent_id", 200) != "") return null;
+            string kind = HookInput.Field(data, "hook_event_name", 80), session = HookInput.Field(data, "session_id", 200);
             if (session.Length == 0 || Array.IndexOf(Events, kind) < 0) return null;
             // Discard prompts, transcript paths, model replies, tool arguments and results.
             return new ClaudeEvent { Source = Source, Session = Source + ":" + session,
-                Event = kind, Turn = Field(data, "turn_id", 200), Tool = Field(data, "tool_name", 96),
-                Notification = Field(data, "source", 32), Ticks = DateTime.UtcNow.Ticks };
+                Event = kind, Turn = HookInput.Field(data, "turn_id", 200), Tool = HookInput.Field(data, "tool_name", 96),
+                Notification = HookInput.Field(data, "source", 32), Ticks = DateTime.UtcNow.Ticks };
         }
 
-        public static int Run()
-        {
-            try
-            {
-                var input = new StringBuilder();
-                using (var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), true))
-                {
-                    char[] buffer = new char[4096];
-                    int count;
-                    while ((count = reader.Read(buffer, 0, buffer.Length)) > 0)
-                    {
-                        if (input.Length + count > 2 * 1024 * 1024) return 0;
-                        input.Append(buffer, 0, count);
-                    }
-                }
-                ClaudeEvent ev = Parse(input.ToString());
-                if (ev == null) return 0;
-                ClaudeLink.WriteEvent(ClaudeLink.DataDir, ev);
-                if (ev.Event == "SessionStart" || ev.Event == "UserPromptSubmit") ClaudeLink.EnsurePetRunning();
-            }
-            catch (Exception) { /* Failure must not block Codex. No output is success. */ }
-            return 0;
-        }
+        public static int Run() { return HookInput.Run(Parse); }
 
         public static ClaudeActivity Activity(ClaudeEvent ev, ClaudeActivity previous)
         {

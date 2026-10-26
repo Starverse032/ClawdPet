@@ -7,15 +7,15 @@ $testDir = Join-Path $root ('work\verify-' + [guid]::NewGuid().ToString('N'))
 $settings = Join-Path $testDir 'settings.json'
 $fixture = '{"model":"keep-me","permissions":{"deny":["Bash(dangerous-command)"]},"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"echo existing-hook"}]}]}}'
 [IO.File]::WriteAllText($settings, $fixture)
-& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings
+& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings -PetPath $PetPath
 $first = [IO.File]::ReadAllText($settings)
 $cfg = $first | ConvertFrom-Json
 if ($cfg.model -ne 'keep-me' -or $cfg.permissions.deny[0] -ne 'Bash(dangerous-command)') { throw 'Unrelated settings changed' }
 if ($cfg.hooks.Stop[0].hooks[0].command -ne 'echo existing-hook') { throw 'Existing hook lost' }
 if (@($cfg.hooks.PSObject.Properties).Count -ne 10) { throw 'Missing events' }
-& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings
+& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings -PetPath $PetPath
 if ($first -cne [IO.File]::ReadAllText($settings)) { throw 'Install is not idempotent' }
-& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings -Remove
+& (Join-Path $root 'Connect-ClaudeCode.ps1') -SettingsPath $settings -PetPath $PetPath -Remove
 $restored = Get-Content -LiteralPath $settings -Raw | ConvertFrom-Json
 if (@($restored.hooks.PSObject.Properties).Count -ne 1 -or @($restored.hooks.Stop).Count -ne 1 -or $restored.hooks.Stop[0].hooks[0].command -ne 'echo existing-hook') { throw 'Removal damaged existing hooks' }
 Write-Output 'PASS installer preserves settings/hooks, is idempotent, and removes only its hooks'

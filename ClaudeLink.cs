@@ -11,6 +11,49 @@ using System.Windows.Forms;
 
 namespace ClawdPet
 {
+    // Both clients send UTF-8 JSON over stdin. Share the size limit and silent
+    // failure behavior so the pet can never block or make decisions for a client.
+    static class HookInput
+    {
+        internal const int MaxLength = 2 * 1024 * 1024;
+
+        public static string Field(Dictionary<string, object> data, string key, int max)
+        {
+            object value;
+            string text = data.TryGetValue(key, out value) ? value as string : null;
+            return text == null ? "" : text.Length <= max ? text : text.Substring(0, max);
+        }
+
+        internal static string Read(TextReader reader)
+        {
+            StringBuilder input = new StringBuilder();
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = reader.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                if (input.Length + count > MaxLength) return null;
+                input.Append(buffer, 0, count);
+            }
+            return input.ToString();
+        }
+
+        public static int Run(Func<string, ClaudeEvent> parse)
+        {
+            try
+            {
+                string input;
+                using (var reader = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), true))
+                    input = Read(reader);
+                ClaudeEvent ev = input == null ? null : parse(input);
+                if (ev == null) return 0;
+                ClaudeLink.WriteEvent(ClaudeLink.DataDir, ev);
+                if (ev.Event == "SessionStart" || ev.Event == "UserPromptSubmit") ClaudeLink.EnsurePetRunning();
+            }
+            catch (Exception) { /* A pet cannot block a client, approve permissions, or write to its stdout. */ }
+            return 0;
+        }
+    }
+
     class ClaudeEvent
     {
         public string Session, Event, Tool, Notification;
@@ -59,7 +102,7 @@ namespace ClawdPet
 
         static JavaScriptSerializer Json()
         {
-            return new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024, RecursionLimit = 100 };
+            return new JavaScriptSerializer { MaxJsonLength = HookInput.MaxLength, RecursionLimit = 100 };
         }
 
         public static bool? PetRunning()
@@ -82,24 +125,15 @@ namespace ClawdPet
             using (Process p = Process.Start(start)) { }
         }
 
-        static string Field(Dictionary<string, object> input, string key, int max)
-        {
-            object value;
-            string s = input.TryGetValue(key, out value) ? value as string : null;
-            if (s == null) return "";
-            if (s.Length > max) s = s.Substring(0, max);
-            return s;
-        }
-
         // Keep only event metadata. Prompts, answers, paths and tool arguments are discarded.
         public static ClaudeEvent ParseHook(string input)
         {
             Dictionary<string, object> data = Json().Deserialize<Dictionary<string, object>>(input);
-            if (data == null || Field(data, "agent_id", 200) != "") return null;
-            string ev = Field(data, "hook_event_name", 80), session = Field(data, "session_id", 200);
+            if (data == null || HookInput.Field(data, "agent_id", 200) != "") return null;
+            string ev = HookInput.Field(data, "hook_event_name", 80), session = HookInput.Field(data, "session_id", 200);
             if (Array.IndexOf(Events, ev) < 0 || session.Length == 0) return null;
-            return new ClaudeEvent { Session = session, Event = ev, Tool = Field(data, "tool_name", 96),
-                Notification = Field(data, "notification_type", 96), Ticks = DateTime.UtcNow.Ticks };
+            return new ClaudeEvent { Session = session, Event = ev, Tool = HookInput.Field(data, "tool_name", 96),
+                Notification = HookInput.Field(data, "notification_type", 96), Ticks = DateTime.UtcNow.Ticks };
         }
 
         public static void WriteEvent(string path, ClaudeEvent ev)
@@ -111,27 +145,7 @@ namespace ClawdPet
             File.Move(stem + ".tmp", stem + ".json");
         }
 
-        public static int RunHook()
-        {
-            try
-            {
-                StringBuilder input = new StringBuilder();
-                char[] buf = new char[4096];
-                int n;
-                while ((n = Console.In.Read(buf, 0, buf.Length)) > 0)
-                {
-                    if (input.Length + n > 2 * 1024 * 1024) return 0;
-                    input.Append(buf, 0, n);
-                }
-                ClaudeEvent ev = ParseHook(input.ToString());
-                if (ev == null) return 0;
-                WriteEvent(DataDir, ev);
-                // Only the start of a session/turn summons the app; never spawn extra pets.
-                if (ev.Event == "SessionStart" || ev.Event == "UserPromptSubmit") EnsurePetRunning();
-            }
-            catch (Exception) { /* No output or nonzero exit: a pet cannot block a tool or approve it. */ }
-            return 0;
-        }
+        public static int RunHook() { return HookInput.Run(ParseHook); }
 
         static string ToolText(string name)
         {

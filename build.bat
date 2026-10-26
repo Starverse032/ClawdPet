@@ -3,6 +3,9 @@ rem Build ClawdPet.exe with the C# compiler that ships with Windows (.NET Framew
 setlocal
 set "NOPAUSE_ARG=%~1"
 cd /d "%~dp0"
+set "OUTPUT_EXE=%~2"
+if not defined OUTPUT_EXE set "OUTPUT_EXE=ClawdPet.exe"
+for %%D in ("%OUTPUT_EXE%") do if not exist "%%~dpD" mkdir "%%~dpD"
 
 set "CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if not exist "%CSC%" set "CSC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\csc.exe"
@@ -11,20 +14,20 @@ if not exist "%CSC%" (
   goto :fail_nocsc
 )
 
-set "FLAGS=/nologo /target:winexe /optimize+ /codepage:65001 /win32manifest:app.manifest /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll"
+set "FLAGS=/target:winexe /win32manifest:app.manifest"
 
 rem Step 1: build without an icon so the exe can draw its own Clawd icon.
 if not exist clawd.ico (
-  "%CSC%" %FLAGS% /out:ClawdPet.exe ClawdPet.cs ClaudeLink.cs DesktopMcp.cs CodexHooks.cs
+  "%CSC%" %FLAGS% /out:"%OUTPUT_EXE%" @ClawdPet.rsp
   if errorlevel 1 goto :fail
-  start "" /wait ClawdPet.exe --make-icon clawd.ico
+  start "" /wait "%OUTPUT_EXE%" --make-icon clawd.ico
 )
 
 rem Step 2: final build with the icon embedded.
-"%CSC%" %FLAGS% /win32icon:clawd.ico /out:ClawdPet.exe ClawdPet.cs ClaudeLink.cs DesktopMcp.cs CodexHooks.cs
+"%CSC%" %FLAGS% /win32icon:clawd.ico /out:"%OUTPUT_EXE%" @ClawdPet.rsp
 if errorlevel 1 goto :fail
 
-echo [ok] Built ClawdPet.exe - double-click it to start Clawd.
+echo [ok] Built "%OUTPUT_EXE%" - double-click it to start Clawd.
 call :maybe_pause
 exit /b 0
 

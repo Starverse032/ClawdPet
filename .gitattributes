@@ -4,5 +4,6 @@
 *.bat text eol=crlf
 *.md text eol=lf
 *.yml text eol=lf
+*.rsp text eol=crlf
 *.png binary
 *.ico binary

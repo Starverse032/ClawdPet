@@ -2,6 +2,10 @@
 
 Claude Code 的吉祥物 **Clawd** 搬到你的 Windows 桌面上：像素风、会走路、会说话，还能站在窗口顶上搭顺风车。
 
+**原始桌宠源码由 Claude（Anthropic）编写。** 贡献说明见 [AUTHORS.md](AUTHORS.md)。
+
+![Clawd 动作预览](preview.png)
+
 ```
  ▐▛███▜▌
 ▝▜█████▛▘
@@ -9,6 +13,9 @@ Claude Code 的吉祥物 **Clawd** 搬到你的 Windows 桌面上：像素风、
 ```
 
 ## 运行
+
+从 [Releases](https://github.com/Wfxy/ClawdPet/releases) 下载 Windows 压缩包并解压。
+从 GitHub 下载的源码包需要先按下方说明编译。
 
 双击 `ClawdPet.exe` 即可。Clawd 会从屏幕上方掉下来，落在任务栏上跟你打招呼。
 不需要安装任何东西（使用 Windows 自带的 .NET Framework 4.x）。
@@ -238,6 +245,24 @@ build.bat
 第一次编译会让程序自己画出 `clawd.ico` 再嵌进 exe。编译前请先从托盘退出正在运行的 Clawd
 （否则 exe 被占用，编译会失败；双击 build.bat 时窗口会停住让你看到结果）。
 
+桌宠运行中也可以编译到其他目录：
+
+```bat
+build.bat /nopause dist\ClawdPet.exe
+```
+
+编译参数和源码列表统一维护在 `ClawdPet.rsp`。
+
+## 测试
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Run-Tests.ps1
+```
+
+测试会自动编译到 `work/` 下的独立目录，检查 Hook 输入、会话状态、完成事件补偿、Dock 边界与下落、
+安装器和两种 MCP 接口。不会修改用户的 Claude/Codex 配置或启动额外桌宠。
+GitHub Actions 在 Windows 上执行相同测试，并提供包含程序和接入脚本的 `ClawdPet-Windows` 构建包。
+
 调试小工具：
 
 - `ClawdPet.exe --sheet preview.png`：导出所有姿势、表情、特效和图标的预览图
@@ -258,7 +283,15 @@ build.bat
 | `Invoke-CodexHook.ps1` | Windows stdin 转发，无日志正文、无权限决定 |
 | `app.manifest` | 每显示器 DPI 感知、Win10/11 兼容声明 |
 | `build.bat` | 一键编译 |
+| `ClawdPet.rsp` | 应用与测试共用的编译参数和源码列表 |
+| `tests/Run-Tests.ps1` | 一键运行隔离回归测试 |
 | `clawd.ico` | 程序生成的图标 |
 | `ClawdPet.exe` | 编译好的程序 |
 
-Clawd 形象归 Anthropic 所有；本项目是粉丝自制的桌面小玩具。
+## 贡献者
+
+- **Claude（Anthropic）**：桌宠原始源码的编写者。
+- **[Wfxy](https://github.com/Wfxy)**：项目维护、需求设计与使用反馈。
+- **Codex（OpenAI）**：Claude/Codex 联动接入、MyDockFinder 适配，以及本次代码精简、测试与 GitHub 发布整理。
+
+完整说明见 [AUTHORS.md](AUTHORS.md)。Clawd 形象归 Anthropic 所有；本项目是粉丝自制的桌面小玩具，并非 Anthropic 或 OpenAI 官方产品。

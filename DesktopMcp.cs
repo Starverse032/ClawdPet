@@ -136,7 +136,7 @@ namespace ClawdPet
                 protocol = Array.IndexOf(Versions, requested) >= 0 ? requested : "2025-11-25";
                 negotiated = true;
                 return Result(id, new { protocolVersion = protocol, capabilities = new { tools = new { listChanged = false } },
-                    serverInfo = new { name = "clawdpet", version = "1.3.0" },
+                    serverInfo = new { name = "clawdpet", version = Program.Version },
                     instructions = "ClawdPet controls only a local desktop animation. Invoke its tools when the user requests pet interaction or status signals. It cannot observe chat starts, generation, completion or permissions automatically. If the user asks for task progress, set thinking before the task and happy/idle when done. Never send private conversation content to the pet." });
             }
             if (!ready) return Error(id, -32002, "Initialize the MCP connection first");

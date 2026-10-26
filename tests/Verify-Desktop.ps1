@@ -2,23 +2,24 @@
 param([switch]$Live, [switch]$Codex, [string]$Executable)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+$petPath = if ($Executable) { $Executable } elseif ($Live) { Join-Path $root 'ClawdPet.exe' } else { Join-Path $root 'work\desktop\ClawdPet.exe' }
 $testRoot = Join-Path $root ('work\desktop\check-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($testRoot)
 $configPath = Join-Path $testRoot 'claude_desktop_config.json'
 [IO.File]::WriteAllText($configPath, '{"preferences":{"keep":true},"mcpServers":{"existing":{"command":"keep.exe","args":["unchanged"]}}}')
-& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath
+& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath -PetPath $petPath
 $first = [IO.File]::ReadAllText($configPath)
-& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath
+& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath -PetPath $petPath
 if ($first -cne [IO.File]::ReadAllText($configPath)) { throw 'Installer is not idempotent' }
 $installed = $first | ConvertFrom-Json
 if (-not $installed.preferences.keep -or $installed.mcpServers.existing.command -ne 'keep.exe' -or $installed.mcpServers.clawdpet.args[0] -ne '--desktop-mcp') { throw 'Incorrect config merge' }
-& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath -Remove
+& (Join-Path $root 'Connect-ClaudeDesktop.ps1') -ConfigPath $configPath -PetPath $petPath -Remove
 $removed = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
 if (@($removed.mcpServers.PSObject.Properties).Count -ne 1 -or $removed.mcpServers.existing.args[0] -ne 'unchanged') { throw 'Removal changed unrelated server' }
 Write-Output 'PASS Desktop config merge, idempotency and scoped removal'
 
 $info = New-Object Diagnostics.ProcessStartInfo
-$info.FileName = if ($Executable) { $Executable } elseif ($Live) { Join-Path $root 'ClawdPet.exe' } else { Join-Path $root 'work\desktop\ClawdPet.exe' }
+$info.FileName = $petPath
 $info.Arguments = if ($Codex) { '--codex-mcp' } else { '--desktop-mcp' }
 $info.UseShellExecute = $false
 $info.CreateNoWindow = $true

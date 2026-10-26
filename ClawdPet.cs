@@ -29,13 +29,14 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("Clawd 桌宠")]
 [assembly: System.Reflection.AssemblyProduct("ClawdPet")]
-[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion(ClawdPet.Program.Version)]
 
 namespace ClawdPet
 {
     // ------------------------------------------------------------------ 入口
     static class Program
     {
+        public const string Version = "1.3.1";
         [STAThread]
         static int Main(string[] args)
         {
@@ -828,16 +829,20 @@ namespace ClawdPet
                 for (int y = 0; y < bitmap.Height; y++)
                 {
                     Marshal.Copy(IntPtr.Add(data.Scan0, y * data.Stride), row, 0, row.Length);
+                    int first = -1, last = -1;
                     for (int x = 0; x < row.Length; x++)
                     {
                         uint pixel = unchecked((uint)row[x]);
-                        // MyDockFinder prints transparent padding as opaque black. Ignore
-                        // that padding and faint shadows, while retaining visible icon edges.
+                        // PrintWindow represents MyDockFinder's transparent padding as black.
                         if ((pixel >> 24) < 16 || ((pixel & 255) <= 12 &&
                             ((pixel >> 8) & 255) <= 12 && ((pixel >> 16) & 255) <= 12)) continue;
-                        left = Math.Min(left, x); right = Math.Max(right, x);
-                        top = Math.Min(top, y); bottom = Math.Max(bottom, y); count++;
+                        if (first < 0) first = x;
+                        last = x; count++;
                     }
+                    if (first < 0) continue;
+                    // Update the four bounds once per occupied row, not per icon pixel.
+                    left = Math.Min(left, first); right = Math.Max(right, last);
+                    top = Math.Min(top, y); bottom = y;
                 }
             }
             finally { bitmap.UnlockBits(data); }
@@ -847,6 +852,7 @@ namespace ClawdPet
                 return Rectangle.Empty;
             return Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
         }
+
     }
 
     class WindowScanner

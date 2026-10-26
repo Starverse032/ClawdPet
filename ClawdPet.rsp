@@ -1,0 +1,11 @@
+/nologo
+/optimize+
+/codepage:65001
+/r:System.dll
+/r:System.Drawing.dll
+/r:System.Windows.Forms.dll
+/r:System.Web.Extensions.dll
+ClawdPet.cs
+ClaudeLink.cs
+DesktopMcp.cs
+CodexHooks.cs
