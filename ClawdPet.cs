@@ -36,7 +36,7 @@ namespace ClawdPet
     // ------------------------------------------------------------------ 入口
     static class Program
     {
-        public const string Version = "1.3.1";
+        public const string Version = "1.4.0";
         [STAThread]
         static int Main(string[] args)
         {
