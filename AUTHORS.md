@@ -5,9 +5,9 @@
 **桌宠原始源码由 Claude 编写。** 原有桌宠的绘制、动作与交互代码是这个项目的基础。
 此署名由项目维护者确认，后续整理与优化保留这一来源说明。
 
-## Wfxy
+## Starverse032
 
-[Wfxy](https://github.com/Wfxy) 负责项目维护、功能需求、体验反馈和 GitHub 仓库管理。
+[Starverse032](https://github.com/Starverse032) 负责项目维护、功能需求、体验反馈和 GitHub 仓库管理。
 
 ## Codex（OpenAI）
 

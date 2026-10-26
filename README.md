@@ -14,7 +14,7 @@ Claude Code 的吉祥物 **Clawd** 搬到你的 Windows 桌面上：像素风、
 
 ## 运行
 
-从 [Releases](https://github.com/Wfxy/ClawdPet/releases) 下载 Windows 压缩包并解压。
+从 [Releases](https://github.com/Starverse032/ClawdPet/releases) 下载 Windows 压缩包并解压。
 从 GitHub 下载的源码包需要先按下方说明编译。
 
 双击 `ClawdPet.exe` 即可。Clawd 会从屏幕上方掉下来，落在任务栏上跟你打招呼。
@@ -291,7 +291,7 @@ GitHub Actions 在 Windows 上执行相同测试，并提供包含程序和接�
 ## 贡献者
 
 - **Claude（Anthropic）**：桌宠原始源码的编写者。
-- **[Wfxy](https://github.com/Wfxy)**：项目维护、需求设计与使用反馈。
+- **[Starverse032](https://github.com/Starverse032)**：项目维护、需求设计与使用反馈。
 - **Codex（OpenAI）**：Claude/Codex 联动接入、MyDockFinder 适配，以及本次代码精简、测试与 GitHub 发布整理。
 
 完整说明见 [AUTHORS.md](AUTHORS.md)。Clawd 形象归 Anthropic 所有；本项目是粉丝自制的桌面小玩具，并非 Anthropic 或 OpenAI 官方产品。
